@@ -6,11 +6,13 @@ const Home = lazy(() => import('./pages/Home'))
 const ImageToWebp = lazy(() => import('./pages/ImageToWebp'))
 const SvgToPng = lazy(() => import('./pages/SvgToPng'))
 const ImageCrop = lazy(() => import('./pages/ImageCrop'))
+const ImageToPdf = lazy(() => import('./pages/ImageToPdf'))
 
 const tools = [
   { id: 'image-to-webp', path: '/image-to-webp', name: '图片转 WebP', desc: '将图片转换为 WebP 格式', component: ImageToWebp },
   { id: 'svg-to-png', path: '/svg-to-png', name: 'SVG 转 PNG', desc: '将 SVG 转换为 PNG 格式', component: SvgToPng },
   { id: 'image-crop', path: '/image-crop', name: '图片裁剪', desc: '裁剪图片的任意区域', component: ImageCrop },
+  { id: 'image-to-pdf', path: '/image-to-pdf', name: '图片拼接 PDF', desc: '将多张图片拼接为 PDF', component: ImageToPdf },
 ]
 
 function Loading() {

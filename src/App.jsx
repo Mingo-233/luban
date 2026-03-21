@@ -18,7 +18,7 @@ const tools = [
 function Loading() {
   return (
     <div class="flex items-center justify-center min-h-[50vh]">
-      <div class="spinner"></div>
+      <div class="soft-spinner"></div>
     </div>
   )
 }
@@ -48,11 +48,13 @@ function App() {
 
   return (
     <div class="min-h-screen p-6 md:p-10">
-      <header class="mb-10">
-        <h1 class="text-4xl md:text-5xl font-bold text-white text-center drop-shadow-lg">
-          工具集合
-        </h1>
-      </header>
+      <Show when={!getCurrentTool()}>
+        <header class="mb-10 text-center">
+          <h1 class="text-4xl md:text-5xl font-bold" style="color: var(--color-text); text-shadow: 2px 2px 4px var(--color-soft-dark), -2px -2px 4px var(--color-soft-light);">
+            工具集合
+          </h1>
+        </header>
+      </Show>
 
       <Suspense fallback={<Loading />}>
         <Show when={getCurrentTool()} fallback={<Home {...pageProps} />}>

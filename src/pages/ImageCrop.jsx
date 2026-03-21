@@ -157,32 +157,32 @@ function ImageCrop(props) {
   return (
     <main class="max-w-2xl mx-auto">
       <button
-        class="glass-button mb-6"
+        class="soft-button mb-6"
         onClick={() => props.navigate('/')}
       >
         返回首页
       </button>
 
-      <div class="glass-card p-6">
-        <h2 class="text-2xl font-semibold text-white mb-6">图片裁剪</h2>
+      <div class="soft-card">
+        <h2 class="text-2xl font-semibold mb-6" style="color: var(--color-text);">图片裁剪</h2>
 
         <div class="mb-6">
           <input
             type="file"
             accept="image/*"
             onChange={handleFileSelect}
-            class="block w-full text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-white/20 file:text-white file:cursor-pointer hover:file:bg-white/30"
+            class="soft-file-input"
           />
         </div>
 
         {error() && (
-          <p class="text-red-300 mb-4">{error()}</p>
+          <p class="soft-error">{error()}</p>
         )}
 
         {preview() && (
           <div
             ref={containerRef}
-            class="mb-6 fade-in relative inline-block"
+            class="mb-6 soft-fade-in relative inline-block"
             onMouseMove={onMouseMove}
             onMouseUp={stopDrag}
             onMouseLeave={stopDrag}
@@ -191,9 +191,10 @@ function ImageCrop(props) {
               ref={imgRef}
               src={preview()}
               alt="Preview"
-              class="max-w-full rounded-lg block"
+              class="max-w-full rounded-xl block"
               onLoad={handleImageLoad}
               draggable={false}
+              style="box-shadow: 4px 4px 8px var(--color-soft-dark), -4px -4px 8px var(--color-soft-light);"
             />
 
             {imageData() && (
@@ -215,12 +216,14 @@ function ImageCrop(props) {
                 />
 
                 <div
-                  class="absolute border-2 border-white cursor-move"
+                  class="absolute cursor-move"
                   style={{
                     left: `${cropArea().x}px`,
                     top: `${cropArea().y}px`,
                     width: `${cropArea().w}px`,
-                    height: `${cropArea().h}px`
+                    height: `${cropArea().h}px`,
+                    border: '2px solid white',
+                    boxShadow: '0 0 0 1px rgba(255,255,255,0.5)'
                   }}
                   onMouseDown={(e) => startDrag(e, 'move')}
                 >
@@ -228,35 +231,35 @@ function ImageCrop(props) {
 
                   <div class="absolute -top-1 -bottom-1 -left-1 -right-1 cursor-move">
                     <div
-                      class="absolute top-0 left-1/2 -translate-x-1/2 w-4 h-4 bg-white rounded-full cursor-ns-resize"
+                      class="absolute top-0 left-1/2 -translate-x-1/2 w-4 h-4 bg-white rounded-full cursor-ns-resize shadow-md"
                       onMouseDown={(e) => startDrag(e, 'n')}
                     />
                     <div
-                      class="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-4 bg-white rounded-full cursor-ns-resize"
+                      class="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-4 bg-white rounded-full cursor-ns-resize shadow-md"
                       onMouseDown={(e) => startDrag(e, 's')}
                     />
                     <div
-                      class="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full cursor-ew-resize"
+                      class="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full cursor-ew-resize shadow-md"
                       onMouseDown={(e) => startDrag(e, 'w')}
                     />
                     <div
-                      class="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full cursor-ew-resize"
+                      class="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full cursor-ew-resize shadow-md"
                       onMouseDown={(e) => startDrag(e, 'e')}
                     />
                     <div
-                      class="absolute top-0 left-0 w-4 h-4 bg-white rounded-full cursor-nwse-resize"
+                      class="absolute top-0 left-0 w-4 h-4 bg-white rounded-full cursor-nwse-resize shadow-md"
                       onMouseDown={(e) => startDrag(e, 'nw')}
                     />
                     <div
-                      class="absolute top-0 right-0 w-4 h-4 bg-white rounded-full cursor-nesw-resize"
+                      class="absolute top-0 right-0 w-4 h-4 bg-white rounded-full cursor-nesw-resize shadow-md"
                       onMouseDown={(e) => startDrag(e, 'ne')}
                     />
                     <div
-                      class="absolute bottom-0 left-0 w-4 h-4 bg-white rounded-full cursor-nesw-resize"
+                      class="absolute bottom-0 left-0 w-4 h-4 bg-white rounded-full cursor-nesw-resize shadow-md"
                       onMouseDown={(e) => startDrag(e, 'sw')}
                     />
                     <div
-                      class="absolute bottom-0 right-0 w-4 h-4 bg-white rounded-full cursor-nwse-resize"
+                      class="absolute bottom-0 right-0 w-4 h-4 bg-white rounded-full cursor-nwse-resize shadow-md"
                       onMouseDown={(e) => startDrag(e, 'se')}
                     />
                   </div>
@@ -268,7 +271,7 @@ function ImageCrop(props) {
 
         {imageData() && (
           <button
-            class="glass-button w-full"
+            class="soft-button-primary w-full"
             onClick={cropImage}
             disabled={loading()}
           >

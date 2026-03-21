@@ -1,4 +1,4 @@
-import { createSignal, createEffect, For, Show, onMount } from 'solid-js'
+import { createSignal, createEffect, For, Show, onMount, onCleanup } from 'solid-js'
 import { jsPDF } from 'jspdf'
 
 function ImageToPdf(props) {
@@ -13,15 +13,28 @@ function ImageToPdf(props) {
   const [resizeStart, setResizeStart] = createSignal({ x: 0, y: 0, width: 0, height: 0, scale: 1 })
   const [listDraggedItem, setListDraggedItem] = createSignal(null)
   const [isDownloading, setIsDownloading] = createSignal(false)
+  const [fileInputRef, setFileInputRef] = createSignal(null)
 
   let canvasRef
   let canvasContainerRef
-  let fileInputRef
 
-  const getCurrentPage = () => pages()[currentPageIndex()]
+  const getCurrentPage = () => {
+    const p = pages()[currentPageIndex()];
+    console.log('getCurrentPage, pages:', pages().length, 'index:', currentPageIndex(), 'page:', p);
+    return p;
+  }
 
   onMount(() => {
     addPage()
+
+    // 全局鼠标事件监听，解决拖动时鼠标超出画布区域失效的问题
+    document.addEventListener('mousemove', handleGlobalMouseMove)
+    document.addEventListener('mouseup', handleCanvasMouseUp)
+  })
+
+  onCleanup(() => {
+    document.removeEventListener('mousemove', handleGlobalMouseMove)
+    document.removeEventListener('mouseup', handleCanvasMouseUp)
   })
 
   const addPage = () => {
@@ -31,7 +44,7 @@ function ImageToPdf(props) {
     }
     setPageIdCounter(c => c + 1)
     setPages(p => [...p, newPage])
-    setCurrentPageIndex(pages().length)
+    setCurrentPageIndex(pages().length - 1)
   }
 
   const deletePage = (index) => {
@@ -86,6 +99,7 @@ function ImageToPdf(props) {
   }
 
   const handleFileSelect = async (e) => {
+    console.log('handleFileSelect called, files:', e.target.files);
     const files = Array.from(e.target.files)
     if (files.length > 0) {
       await addImagesToCurrentPage(files)
@@ -95,6 +109,7 @@ function ImageToPdf(props) {
 
   const addImagesToCurrentPage = async (files) => {
     const page = getCurrentPage()
+    console.log('addImagesToCurrentPage, page:', page, 'files:', files.length);
     if (!page) return
     const existingCount = page.images.length
 
@@ -116,6 +131,8 @@ function ImageToPdf(props) {
       })
     }
 
+    console.log('Before setPages, pages():', pages().length, 'currentPageIndex:', currentPageIndex());
+
     if (existingCount === 0 && page.images.length > 0) {
       positionImages(page)
     } else if (existingCount > 0) {
@@ -124,6 +141,7 @@ function ImageToPdf(props) {
 
     setPages([...pages()])
     setCurrentPageIndex(currentPageIndex())
+    console.log('After setPages, pages():', pages().length, 'currentPageIndex:', currentPageIndex());
   }
 
   const positionImages = (page) => {
@@ -220,20 +238,49 @@ function ImageToPdf(props) {
     })
   }
 
-  const handleCanvasMouseMove = (e) => {
-    if (!isDragging() || !selectedItem()) return
+  let rafId = null
 
-    const page = getCurrentPage()
-    const img = page.images.find(i => i.id === selectedItem())
-    if (!img) return
+  const handleGlobalMouseMove = (e) => {
+    if (rafId) return
+    rafId = requestAnimationFrame(() => {
+      rafId = null
+      // 处理图片拖动
+      if (isDragging() && selectedItem()) {
+        const pageIndex = currentPageIndex()
+        const page = pages()[pageIndex]
+        const img = page?.images.find(i => i.id === selectedItem())
+        if (img) {
+          img.x = dragOffset().imgX + (e.clientX - dragOffset().mouseX)
+          img.y = dragOffset().imgY + (e.clientY - dragOffset().mouseY)
+          // 直接触发当前页更新，不触发所有页
+          setPages([...pages()])
+        }
+      }
 
-    img.x = dragOffset().imgX + (e.clientX - dragOffset().mouseX)
-    img.y = dragOffset().imgY + (e.clientY - dragOffset().mouseY)
+      // 处理缩放
+      if (isResizing() && selectedItem()) {
+        const pageIndex = currentPageIndex()
+        const page = pages()[pageIndex]
+        const img = page?.images.find(i => i.id === selectedItem())
+        if (!img) return
 
-    setPages([...pages()])
+        const deltaX = (e.clientX - resizeStart().x) / canvasZoom()
+        const deltaY = (e.clientY - resizeStart().y) / canvasZoom()
+        const avgDelta = (deltaX + deltaY) / 2
+
+        const newScale = Math.max(0.1, resizeStart().scale + avgDelta / 200)
+        img.scale = newScale
+
+        setPages([...pages()])
+      }
+    })
   }
 
   const handleCanvasMouseUp = () => {
+    if (rafId) {
+      cancelAnimationFrame(rafId)
+      rafId = null
+    }
     setIsDragging(false)
     setIsResizing(false)
   }
@@ -249,29 +296,12 @@ function ImageToPdf(props) {
     setResizeStart({
       x: e.clientX,
       y: e.clientY,
-      width: img.width * img.scale,
-      height: img.height * img.scale,
+      width: img.width,
+      height: img.height,
       scale: img.scale
     })
 
     setSelectedItem(id)
-  }
-
-  const handleResize = (e) => {
-    if (!isResizing() || !selectedItem()) return
-
-    const page = getCurrentPage()
-    const img = page.images.find(i => i.id === selectedItem())
-    if (!img) return
-
-    const deltaX = (e.clientX - resizeStart().x) / canvasZoom()
-    const deltaY = (e.clientY - resizeStart().y) / canvasZoom()
-    const avgDelta = (deltaX + deltaY) / 2
-
-    const newScale = Math.max(0.1, resizeStart().scale + avgDelta / 200)
-    img.scale = newScale
-
-    setPages([...pages()])
   }
 
   const handleCanvasClick = (e) => {
@@ -443,29 +473,36 @@ function ImageToPdf(props) {
   return (
     <main class="max-w-6xl mx-auto">
       <button
-        class="glass-button mb-6"
+        class="soft-button mb-6"
         onClick={() => props.navigate('/')}
       >
         返回首页
       </button>
 
       <div class="flex flex-col h-[calc(100vh-200px)] gap-4">
-        <header class="glass-card p-4 flex items-center justify-between">
-          <h2 class="text-xl font-semibold text-white">图片拼接 PDF</h2>
+        <header class="soft-card p-4 flex items-center justify-between">
+          <h2 class="text-xl font-semibold" style="color: var(--color-text);">图片拼接 PDF</h2>
           <div class="flex items-center gap-3">
-            <div class="flex items-center gap-1 bg-white/10 rounded-lg p-1">
+            <div class="flex items-center gap-1 rounded-xl p-1" style="background: var(--color-soft-bg); box-shadow: inset 3px 3px 6px var(--color-soft-dark), inset -3px -3px 6px var(--color-soft-light);">
               <For each={pages()}>
                 {(page, index) => (
                   <div
-                    class={`flex items-center gap-1 px-3 py-1.5 rounded-md cursor-pointer transition-all ${
-                      currentPageIndex() === index() ? 'bg-violet-500 text-white' : 'text-gray-400 hover:bg-white/10'
-                    }`}
+                    class={`flex items-center gap-1 px-3 py-1.5 rounded-lg cursor-pointer transition-all`}
+                    style={{
+                      background: currentPageIndex() === index() ? 'linear-gradient(145deg, #8b5cf6, #7c3aed)' : 'transparent',
+                      color: currentPageIndex() === index() ? 'white' : 'var(--color-text-light)',
+                      'box-shadow': currentPageIndex() === index() ? '2px 2px 4px var(--color-soft-dark), -2px -2px 4px var(--color-soft-light)' : 'none'
+                    }}
                     onClick={() => switchToPage(index())}
                   >
                     <span class="text-sm">第{index() + 1}页</span>
                     <Show when={pages().length > 1}>
                       <button
-                        class="ml-1 w-4 h-4 rounded-full bg-white/20 hover:bg-red-500 flex items-center justify-center text-xs"
+                        class="ml-1 w-4 h-4 rounded-full flex items-center justify-center text-xs"
+                        style={{
+                          background: currentPageIndex() === index() ? 'rgba(255,255,255,0.3)' : 'var(--color-soft-bg)',
+                          color: currentPageIndex() === index() ? 'white' : 'var(--color-text-light)'
+                        }}
                         onClick={(e) => {
                           e.stopPropagation()
                           deletePage(index())
@@ -478,7 +515,12 @@ function ImageToPdf(props) {
                 )}
               </For>
               <button
-                class="w-7 h-7 rounded-full bg-violet-500/30 border border-dashed border-violet-500 flex items-center justify-center text-violet-400 hover:bg-violet-500/50 transition-all"
+                class="w-7 h-7 rounded-full flex items-center justify-center transition-all"
+                style={{
+                  background: 'linear-gradient(145deg, #8b5cf6, #7c3aed)',
+                  color: 'white',
+                  'box-shadow': '2px 2px 4px var(--color-soft-dark), -2px -2px 4px var(--color-soft-light)'
+                }}
                 onClick={addPage}
                 title="添加页面"
               >
@@ -486,14 +528,15 @@ function ImageToPdf(props) {
               </button>
             </div>
             <button
-              class="glass-button !bg-white/10 !border-white/20 !hover:bg-white/20 text-sm"
+              class="soft-button text-sm"
+              style={getImageCount() === 0 ? { opacity: 0.5 } : {}}
               onClick={clearCurrentPage}
               disabled={getImageCount() === 0}
             >
               清空
             </button>
             <button
-              class="glass-button text-sm"
+              class="soft-button-primary text-sm"
               onClick={downloadPDF}
               disabled={isDownloading() || pages().every(p => p.images.length === 0)}
             >
@@ -503,10 +546,10 @@ function ImageToPdf(props) {
         </header>
 
         <div class="flex flex-1 gap-4 min-h-0">
-          <aside class="w-64 glass-card p-4 flex flex-col">
+          <aside class="w-64 soft-card p-4 flex flex-col">
             <div class="flex justify-between items-center mb-3">
-              <h3 class="text-sm text-gray-400 font-medium">当前页图片</h3>
-              <span class="text-xs bg-violet-500/30 text-violet-300 px-2 py-0.5 rounded-full">
+              <h3 class="text-sm font-medium" style="color: var(--color-text-light);">当前页图片</h3>
+              <span class="text-xs px-2 py-0.5 rounded-full" style="background: linear-gradient(145deg, #8b5cf6, #7c3aed); color: white;">
                 {getImageCount()}
               </span>
             </div>
@@ -517,7 +560,8 @@ function ImageToPdf(props) {
               <For each={getCurrentPage()?.images || []}>
                 {(img, index) => (
                   <div
-                    class="image-item flex items-center gap-3 p-2 rounded-lg bg-white/5 hover:bg-white/10 cursor-grab active:cursor-grabbing transition-all"
+                    class="image-item flex items-center gap-3 p-2 rounded-lg cursor-grab active:cursor-grabbing transition-all"
+                    style="box-shadow: 2px 2px 4px var(--color-soft-dark), -2px -2px 4px var(--color-soft-light);"
                     draggable={true}
                     data-id={img.id}
                     onDragStart={handleListDragStart}
@@ -525,14 +569,15 @@ function ImageToPdf(props) {
                     onDragOver={handleListDragOver}
                     onDrop={handleListDrop}
                   >
-                    <span class="text-gray-500 cursor-grab">⋮⋮</span>
-                    <img src={img.src} alt={img.name} class="w-10 h-10 object-cover rounded" />
+                    <span style="color: var(--color-text-light); cursor: grab;">⋮⋮</span>
+                    <img src={img.src} alt={img.name} class="w-10 h-10 object-cover rounded" style="box-shadow: 1px 1px 2px var(--color-soft-dark), -1px -1px 2px var(--color-soft-light);" />
                     <div class="flex-1 min-w-0">
-                      <div class="text-sm text-gray-300 truncate">{img.name}</div>
-                      <div class="text-xs text-gray-500">第 {index() + 1} 张</div>
+                      <div class="text-sm truncate" style="color: var(--color-text);">{img.name}</div>
+                      <div class="text-xs" style="color: var(--color-text-light);">第 {index() + 1} 张</div>
                     </div>
                     <button
-                      class="w-6 h-6 rounded bg-white/10 hover:bg-red-500/50 flex items-center justify-center text-gray-400 hover:text-white transition-all"
+                      class="w-6 h-6 rounded flex items-center justify-center transition-all"
+                      style="background: var(--color-soft-bg); box-shadow: 2px 2px 4px var(--color-soft-dark), -2px -2px 4px var(--color-soft-light); color: var(--color-text-light);"
                       onClick={() => deleteImage(img.id)}
                     >
                       ×
@@ -543,27 +588,30 @@ function ImageToPdf(props) {
             </div>
           </aside>
 
-          <section class="flex-1 glass-card p-4 flex flex-col min-h-0">
+          <section class="flex-1 soft-card p-4 flex flex-col min-h-0">
             <div class="flex justify-between items-center mb-3">
-              <h3 class="text-sm text-gray-400 font-medium">画布预览</h3>
+              <h3 class="text-sm font-medium" style="color: var(--color-text-light);">画布预览</h3>
               <div class="flex items-center gap-2">
                 <button
-                  class="w-7 h-7 rounded bg-white/10 hover:bg-white/20 flex items-center justify-center text-gray-400 hover:text-white transition-all"
+                  class="w-7 h-7 rounded flex items-center justify-center transition-all"
+                  style="background: var(--color-soft-bg); box-shadow: 2px 2px 4px var(--color-soft-dark), -2px -2px 4px var(--color-soft-light); color: var(--color-text);"
                   onClick={() => setCanvasZoom(z => Math.max(0.2, z - 0.1))}
                 >
                   −
                 </button>
-                <span class="text-xs text-gray-400 w-12 text-center">
+                <span class="text-xs w-12 text-center" style="color: var(--color-text-light);">
                   {Math.round(canvasZoom() * 100)}%
                 </span>
                 <button
-                  class="w-7 h-7 rounded bg-white/10 hover:bg-white/20 flex items-center justify-center text-gray-400 hover:text-white transition-all"
+                  class="w-7 h-7 rounded flex items-center justify-center transition-all"
+                  style="background: var(--color-soft-bg); box-shadow: 2px 2px 4px var(--color-soft-dark), -2px -2px 4px var(--color-soft-light); color: var(--color-text);"
                   onClick={() => setCanvasZoom(z => Math.min(2, z + 0.1))}
                 >
                   +
                 </button>
                 <button
-                  class="w-7 h-7 rounded bg-white/10 hover:bg-white/20 flex items-center justify-center text-gray-400 hover:text-white transition-all"
+                  class="w-7 h-7 rounded flex items-center justify-center transition-all"
+                  style="background: var(--color-soft-bg); box-shadow: 2px 2px 4px var(--color-soft-dark), -2px -2px 4px var(--color-soft-light); color: var(--color-text);"
                   onClick={() => setCanvasZoom(1)}
                   title="重置缩放"
                 >
@@ -573,15 +621,16 @@ function ImageToPdf(props) {
             </div>
             <div
               ref={canvasContainerRef}
-              class="flex-1 rounded-lg overflow-hidden relative"
+              class="flex-1 rounded-xl overflow-hidden relative"
               style={{
-                background: `linear-gradient(45deg, rgba(255,255,255,0.05) 25%, transparent 25%),
-                             linear-gradient(-45deg, rgba(255,255,255,0.05) 25%, transparent 25%),
-                             linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.05) 75%),
-                             linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.05) 75%)`,
+                background: `linear-gradient(45deg, rgba(200,204,212,0.3) 25%, transparent 25%),
+                             linear-gradient(-45deg, rgba(200,204,212,0.3) 25%, transparent 25%),
+                             linear-gradient(45deg, transparent 75%, rgba(200,204,212,0.3) 75%),
+                             linear-gradient(-45deg, transparent 75%, rgba(200,204,212,0.3) 75%)`,
                 "background-size": "16px 16px",
                 "background-position": "0 0, 0 8px, 8px -8px, -8px 0px",
-                "background-color": "rgba(30,30,50,0.5)"
+                "background-color": "var(--color-soft-bg)",
+                "box-shadow": "inset 4px 4px 8px var(--color-soft-dark), inset -4px -4px 8px var(--color-soft-light)"
               }}
               onClick={handleCanvasClick}
               onDragOver={handleDragOver}
@@ -591,14 +640,16 @@ function ImageToPdf(props) {
             >
               <Show when={getImageCount() === 0}>
                 <div class="drop-zone absolute inset-0 flex flex-col items-center justify-center gap-3">
-                  <div class="w-16 h-16 rounded-xl border-2 border-dashed border-violet-500/50 flex items-center justify-center text-violet-400 text-2xl">
+                  <div class="w-16 h-16 rounded-xl border-2 border-dashed flex items-center justify-center text-2xl"
+                    style="border-color: var(--color-text-light); color: var(--color-text-light);">
                     +
                   </div>
-                  <p class="text-gray-500 text-sm">
+                  <p class="text-sm" style="color: var(--color-text-light);">
                     拖拽图片到此处，或{' '}
                     <span
-                      class="text-violet-400 cursor-pointer hover:underline"
-                      onClick={() => fileInputRef?.click()}
+                      class="cursor-pointer"
+                      style="color: var(--color-accent);"
+                      onClick={() => fileInputRef()?.click()}
                     >
                       浏览
                     </span>
@@ -615,19 +666,19 @@ function ImageToPdf(props) {
                   transform: `translate(-50%, -50%) scale(${canvasZoom()})`,
                   "transform-origin": "center center"
                 }}
-                onMouseMove={handleResize}
-                onMouseUp={handleCanvasMouseUp}
               >
                 <For each={getCurrentPage()?.images || []}>
                   {(img) => (
                     <div
-                      class={`canvas-item absolute cursor-move ${selectedItem() === img.id ? 'outline-2 outline-violet-500 outline-offset-2' : ''}`}
+                      class={`canvas-item absolute cursor-move`}
                       data-id={img.id}
                       style={{
-                        left: `${img.x}px`,
-                        top: `${img.y}px`,
+                        '--img-x': `${img.x}px`,
+                        '--img-y': `${img.y}px`,
                         width: `${img.width * img.scale}px`,
-                        height: `${img.height * img.scale}px`
+                        height: `${img.height * img.scale}px`,
+                        outline: selectedItem() === img.id ? '2px solid var(--color-accent)' : 'none',
+                        "outline-offset": "2px"
                       }}
                       onMouseDown={(e) => handleItemMouseDown(e, img.id)}
                       onClick={(e) => {
@@ -641,13 +692,27 @@ function ImageToPdf(props) {
                         draggable={false}
                       />
                       <div
-                        class="resize-handle absolute w-3.5 h-3.5 bg-violet-500 rounded-full -right-2 -bottom-2 cursor-se-resize opacity-0 hover:opacity-100 transition-opacity"
+                        class="resize-handle absolute w-3.5 h-3.5 rounded-full cursor-se-resize opacity-0 hover:opacity-100 transition-opacity"
                         classList={{ "opacity-100": selectedItem() === img.id }}
+                        style={{
+                          background: 'linear-gradient(145deg, #8b5cf6, #7c3aed)',
+                          right: '-8px',
+                          bottom: '-8px',
+                          "box-shadow": '2px 2px 4px var(--color-soft-dark), -2px -2px 4px var(--color-soft-light)'
+                        }}
                         onMouseDown={(e) => startResize(e, e.currentTarget.parentElement)}
                       />
                       <button
-                        class="delete-btn absolute -top-2.5 -right-2.5 w-6 h-6 bg-violet-500 rounded-full text-white flex items-center justify-center text-sm opacity-0 hover:opacity-100 transition-opacity"
+                        class="delete-btn absolute rounded-full text-white flex items-center justify-center text-sm opacity-0 hover:opacity-100 transition-opacity"
                         classList={{ "opacity-100": selectedItem() === img.id }}
+                        style={{
+                          background: 'linear-gradient(145deg, #e53e3e, #c53030)',
+                          width: '24px',
+                          height: '24px',
+                          top: '-10px',
+                          right: '-10px',
+                          "box-shadow": '2px 2px 4px var(--color-soft-dark), -2px -2px 4px var(--color-soft-light)'
+                        }}
                         onClick={(e) => {
                           e.stopPropagation()
                           deleteImage(img.id)
@@ -661,7 +726,10 @@ function ImageToPdf(props) {
               </div>
             </div>
             <input
-              ref={fileInputRef}
+              ref={(el) => {
+                console.log('File input ref set:', el);
+                setFileInputRef(el)
+              }}
               type="file"
               multiple
               accept="image/*"
@@ -671,14 +739,17 @@ function ImageToPdf(props) {
           </section>
         </div>
 
-        <footer class="glass-card p-3 flex justify-between items-center">
+        <footer class="soft-card p-3 flex justify-between items-center">
           <button
-            class="glass-button !bg-white/10 !border-white/20 !hover:bg-white/20 text-sm"
-            onClick={() => fileInputRef?.click()}
+            class="soft-button text-sm"
+            onClick={() => {
+              console.log('Button clicked, fileInputRef:', fileInputRef());
+              fileInputRef()?.click()
+            }}
           >
             + 添加图片
           </button>
-          <p class="text-gray-500 text-sm">
+          <p class="text-sm" style="color: var(--color-text-light);">
             共 {pageCount()} 页 | {getImageCount()} 张图片
           </p>
         </footer>
@@ -687,19 +758,15 @@ function ImageToPdf(props) {
       <style>{`
         .image-item.dragging {
           opacity: 0.5;
-          border: 2px solid rgb(124, 58, 237);
         }
         .image-item.drag-over {
-          border: 2px solid rgb(124, 58, 237);
           background: rgba(124, 58, 237, 0.1);
         }
         .drop-zone.drag-active {
           background: rgba(124, 58, 237, 0.1);
         }
-        .drop-zone.drag-active .drop-zone-icon {
-          border-color: rgb(124, 58, 237);
-          background: rgba(124, 58, 237, 0.1);
-          transform: scale(1.05);
+        .canvas-item {
+          transform: translate(var(--img-x, 0), var(--img-y, 0));
         }
         ::-webkit-scrollbar {
           width: 4px;
@@ -708,7 +775,7 @@ function ImageToPdf(props) {
           background: transparent;
         }
         ::-webkit-scrollbar-thumb {
-          background: rgba(124, 58, 237, 0.3);
+          background: var(--color-soft-dark);
           border-radius: 2px;
         }
       `}</style>

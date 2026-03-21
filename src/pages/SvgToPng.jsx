@@ -62,52 +62,57 @@ function SvgToPng(props) {
   return (
     <main class="max-w-2xl mx-auto">
       <button
-        class="glass-button mb-6"
+        class="soft-button mb-6"
         onClick={() => props.navigate('/')}
       >
         返回首页
       </button>
 
-      <div class="glass-card p-6">
-        <h2 class="text-2xl font-semibold text-white mb-6">SVG 转 PNG</h2>
+      <div class="soft-card">
+        <h2 class="text-2xl font-semibold mb-6" style="color: var(--color-text);">SVG 转 PNG</h2>
 
         <div class="mb-6">
           <input
             type="file"
             accept=".svg"
             onChange={handleFileSelect}
-            class="block w-full text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-white/20 file:text-white file:cursor-pointer hover:file:bg-white/30"
+            class="soft-file-input"
           />
         </div>
 
         {error() && (
-          <p class="text-red-300 mb-4">{error()}</p>
+          <p class="soft-error">{error()}</p>
         )}
 
         {preview() && (
-          <div class="mb-6 fade-in">
-            <img src={preview()} alt="Preview" class="max-w-full rounded-lg" />
+          <div class="soft-preview soft-fade-in">
+            <img src={preview()} alt="Preview" />
           </div>
         )}
 
         {preview() && (
           <>
             <div class="mb-4">
-              <label class="text-white block mb-2">分辨率</label>
-              <div class="flex gap-4">
+              <label class="block mb-3" style="color: var(--color-text);">分辨率</label>
+              <div class="flex gap-3">
                 {[{ v: 1, l: '1x' }, { v: 2, l: '2x' }, { v: 4, l: '4x' }].map(opt => (
                   <button
-                    class={`px-4 py-2 rounded-lg transition-all ${resolution() === opt.v ? 'bg-white/30' : 'bg-white/10 hover:bg-white/20'}`}
+                    class={`soft-button px-4 py-2 text-sm ${resolution() === opt.v ? '' : ''}`}
+                    style={resolution() === opt.v ? {
+                      background: 'linear-gradient(145deg, #8b5cf6, #7c3aed)',
+                      color: 'white',
+                      boxShadow: 'inset 3px 3px 6px rgba(163, 168, 183, 0.4), inset -3px -3px 6px rgba(255, 255, 255, 0.6)'
+                    } : {}}
                     onClick={() => setResolution(opt.v)}
                   >
-                    <span class="text-white">{opt.l}</span>
+                    {opt.l}
                   </button>
                 ))}
               </div>
             </div>
 
             <button
-              class="glass-button w-full"
+              class="soft-button-primary w-full"
               onClick={convertToPng}
               disabled={loading()}
             >

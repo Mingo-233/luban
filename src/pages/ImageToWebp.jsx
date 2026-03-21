@@ -56,37 +56,37 @@ function ImageToWebp(props) {
   return (
     <main class="max-w-2xl mx-auto">
       <button
-        class="glass-button mb-6"
+        class="soft-button mb-6"
         onClick={() => props.navigate('/')}
       >
         返回首页
       </button>
 
-      <div class="glass-card p-6">
-        <h2 class="text-2xl font-semibold text-white mb-6">图片转 WebP</h2>
+      <div class="soft-card">
+        <h2 class="text-2xl font-semibold mb-6" style="color: var(--color-text);">图片转 WebP</h2>
 
         <div class="mb-6">
           <input
             type="file"
             accept="image/*"
             onChange={handleFileSelect}
-            class="block w-full text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-white/20 file:text-white file:cursor-pointer hover:file:bg-white/30"
+            class="soft-file-input"
           />
         </div>
 
         {error() && (
-          <p class="text-red-300 mb-4">{error()}</p>
+          <p class="soft-error">{error()}</p>
         )}
 
         {preview() && (
-          <div class="mb-6 fade-in">
-            <img src={preview()} alt="Preview" class="max-w-full rounded-lg" />
+          <div class="soft-preview soft-fade-in">
+            <img src={preview()} alt="Preview" />
           </div>
         )}
 
         {preview() && (
           <div class="mb-6">
-            <label class="text-white block mb-2">
+            <label class="block mb-3" style="color: var(--color-text);">
               质量: {quality()}%
             </label>
             <input
@@ -95,14 +95,14 @@ function ImageToWebp(props) {
               max="100"
               value={quality()}
               onInput={(e) => setQuality(parseInt(e.target.value))}
-              class="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-violet-500"
+              class="soft-range"
             />
           </div>
         )}
 
         {preview() && (
           <button
-            class="glass-button w-full"
+            class="soft-button-primary w-full"
             onClick={convertToWebP}
             disabled={loading()}
           >
